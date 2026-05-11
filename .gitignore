@@ -1,0 +1,26 @@
+# Longbow app binaries and SteamCMD
+steamcmd/
+*.dll
+*.exe
+*.pdb
+
+# Scenario configs (contain private IPs and passwords)
+scenarios/
+
+# Credentials — never commit
+docker/.env
+*.env
+!*.env.example
+
+# Runtime state
+scenario-manager/scenarios.db
+*.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Misc
+.DS_Store
+Thumbs.db

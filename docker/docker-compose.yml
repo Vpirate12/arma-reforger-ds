@@ -1,0 +1,174 @@
+services:
+
+  # ── Management ──────────────────────────────────────────────────────────────
+
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+
+  scenario-manager:
+    build: ../scenario-manager
+    container_name: scenario-manager
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - D:/Longbow/scenarios/Testing:/scenarios
+    environment:
+      SCENARIOS_PATH: /scenarios
+      SECRET_KEY: ${SECRET_KEY}
+    depends_on:
+      - portainer
+
+  # ── IPC PVE servers ─────────────────────────────────────────────────────────
+  # cpuset pins to CCD0 on Ryzen 9 7950X (cores 0-7 + SMT siblings 16-23).
+  # cpu_shares 2048 = 2x default weight; gives DS priority over other containers.
+  # seccomp:unconfined required for SteamCMD's networking stack on Docker Desktop.
+
+  ds-ipc-everon:
+    build: .
+    container_name: ds-ipc-everon
+    profiles: ["ipc-everon"]
+    restart: on-failure
+    cpuset: "0-7,16-23"
+    cpu_shares: 2048
+    security_opt: ["seccomp:unconfined"]
+    ports:
+      - "2001:2001/udp"
+      - "17777:17777/udp"
+      - "19999:19999/tcp"
+    volumes:
+      - arma_serverdata:/serverdata
+      - arma_saves_ipc_everon:/root/.local/share/ArmaReforger
+      - D:/Longbow/scenarios/Testing/ipc_everon.json:/config/server.json:ro
+    env_file: .env
+
+  ds-ipc-ruha:
+    build: .
+    container_name: ds-ipc-ruha
+    profiles: ["ipc-ruha"]
+    restart: on-failure
+    cpuset: "0-7,16-23"
+    cpu_shares: 2048
+    security_opt: ["seccomp:unconfined"]
+    ports:
+      - "2001:2001/udp"
+      - "17777:17777/udp"
+      - "19999:19999/tcp"
+    volumes:
+      - arma_serverdata:/serverdata
+      - arma_saves_ipc_ruha:/root/.local/share/ArmaReforger
+      - D:/Longbow/scenarios/Testing/ipc_ruha.json:/config/server.json:ro
+    env_file: .env
+
+  ds-ipc-kunar:
+    build: .
+    container_name: ds-ipc-kunar
+    profiles: ["ipc-kunar"]
+    restart: on-failure
+    cpuset: "0-7,16-23"
+    cpu_shares: 2048
+    security_opt: ["seccomp:unconfined"]
+    ports:
+      - "2001:2001/udp"
+      - "17777:17777/udp"
+      - "19999:19999/tcp"
+    volumes:
+      - arma_serverdata:/serverdata
+      - arma_saves_ipc_kunar:/root/.local/share/ArmaReforger
+      - D:/Longbow/scenarios/Testing/ipc_kunar.json:/config/server.json:ro
+    env_file: .env
+
+  ds-ipc-novka:
+    build: .
+    container_name: ds-ipc-novka
+    profiles: ["ipc-novka"]
+    restart: on-failure
+    cpuset: "0-7,16-23"
+    cpu_shares: 2048
+    security_opt: ["seccomp:unconfined"]
+    ports:
+      - "2001:2001/udp"
+      - "17777:17777/udp"
+      - "19999:19999/tcp"
+    volumes:
+      - arma_serverdata:/serverdata
+      - arma_saves_ipc_novka:/root/.local/share/ArmaReforger
+      - D:/Longbow/scenarios/Testing/ipc_novka.json:/config/server.json:ro
+    env_file: .env
+
+  # ── COE2 Random Patrols servers ─────────────────────────────────────────────
+
+  ds-coe2-arland:
+    build: .
+    container_name: ds-coe2-arland
+    profiles: ["coe2-arland"]
+    restart: on-failure
+    cpuset: "0-7,16-23"
+    cpu_shares: 2048
+    security_opt: ["seccomp:unconfined"]
+    ports:
+      - "2001:2001/udp"
+      - "17777:17777/udp"
+      - "19999:19999/tcp"
+    volumes:
+      - arma_serverdata:/serverdata
+      - arma_saves_coe2_arland:/root/.local/share/ArmaReforger
+      - D:/Longbow/scenarios/Testing/coe2_arland.json:/config/server.json:ro
+    env_file: .env
+
+  ds-coe2-cain:
+    build: .
+    container_name: ds-coe2-cain
+    profiles: ["coe2-cain"]
+    restart: on-failure
+    cpuset: "0-7,16-23"
+    cpu_shares: 2048
+    security_opt: ["seccomp:unconfined"]
+    ports:
+      - "2001:2001/udp"
+      - "17777:17777/udp"
+      - "19999:19999/tcp"
+    volumes:
+      - arma_serverdata:/serverdata
+      - arma_saves_coe2_cain:/root/.local/share/ArmaReforger
+      - D:/Longbow/scenarios/Testing/coe2_cain.json:/config/server.json:ro
+    env_file: .env
+
+  ds-coe2-eden:
+    build: .
+    container_name: ds-coe2-eden
+    profiles: ["coe2-eden"]
+    restart: on-failure
+    cpuset: "0-7,16-23"
+    cpu_shares: 2048
+    security_opt: ["seccomp:unconfined"]
+    ports:
+      - "2001:2001/udp"
+      - "17777:17777/udp"
+      - "19999:19999/tcp"
+    volumes:
+      - arma_serverdata:/serverdata
+      - arma_saves_coe2_eden:/root/.local/share/ArmaReforger
+      - D:/Longbow/scenarios/Testing/coe2_eden.json:/config/server.json:ro
+    env_file: .env
+
+# ── Volumes ───────────────────────────────────────────────────────────────────
+
+volumes:
+  portainer_data:
+  arma_serverdata:
+  arma_saves_ipc_everon:
+  arma_saves_ipc_ruha:
+  arma_saves_ipc_kunar:
+  arma_saves_ipc_novka:
+  arma_saves_coe2_arland:
+  arma_saves_coe2_cain:
+  arma_saves_coe2_eden:

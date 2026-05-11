@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scenario Manager - Spare Time Gaming</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            color: #333;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2d5016 0%, #1a3a0a 100%);
+            color: white;
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 24px;
+        }
+
+        .header-right {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .user-info {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .logout-btn {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            transition: background 0.3s;
+        }
+
+        .logout-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .section h2 {
+            color: #2d5016;
+            margin-bottom: 20px;
+            font-size: 20px;
+            border-bottom: 2px solid #2d5016;
+            padding-bottom: 10px;
+        }
+
+        .upload-area {
+            border: 2px dashed #2d5016;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            background: #f0f4e8;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .upload-area:hover {
+            background: #e8f5e9;
+            border-color: #1a3a0a;
+        }
+
+        .upload-area.dragover {
+            background: #e8f5e9;
+            border-color: #1a3a0a;
+            transform: scale(1.02);
+        }
+
+        .upload-area p {
+            color: #2d5016;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .upload-area small {
+            color: #666;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .scenarios-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .scenario-card {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            transition: all 0.3s;
+        }
+
+        .scenario-card:hover {
+            border-color: #2d5016;
+            box-shadow: 0 4px 12px rgba(45, 80, 22, 0.1);
+        }
+
+        .scenario-card.active {
+            background: #e8f5e9;
+            border-color: #2d5016;
+        }
+
+        .scenario-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2d5016;
+            margin-bottom: 12px;
+            word-break: break-word;
+        }
+
+        .scenario-detail {
+            font-size: 13px;
+            color: #666;
+            margin: 6px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .scenario-detail-label {
+            font-weight: 600;
+        }
+
+        .scenario-detail-value {
+            color: #555;
+        }
+
+        .scenario-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            flex: 1;
+            min-width: 70px;
+            padding: 8px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.3s;
+            text-align: center;
+        }
+
+        .btn-primary {
+            background: #2d5016;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1a3a0a;
+        }
+
+        .btn-secondary {
+            background: #e9ecef;
+            color: #555;
+        }
+
+        .btn-secondary:hover {
+            background: #dee2e6;
+        }
+
+        .btn-danger {
+            background: #ffe8e8;
+            color: #c92a2a;
+        }
+
+        .btn-danger:hover {
+            background: #ffc9c9;
+        }
+
+        .btn-success {
+            background: #e8f5e9;
+            color: #2d5016;
+        }
+
+        .btn-success:hover {
+            background: #c8e6c9;
+        }
+
+        .btn-check {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .btn-check:hover {
+            background: #ffe69c;
+        }
+
+        .active-badge {
+            display: inline-block;
+            background: #2d5016;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .alert.success {
+            background: #e8f5e9;
+            color: #2d5016;
+            border-left: 4px solid #2d5016;
+        }
+
+        .alert.error {
+            background: #ffe8e8;
+            color: #c92a2a;
+            border-left: 4px solid #c92a2a;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #2d5016;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .empty-state p {
+            margin-bottom: 15px;
+        }
+
+        .container-status-panel {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 14px 18px;
+            background: #f0f4e8;
+            border: 1px solid #c8dba0;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .container-status-label {
+            font-weight: 600;
+            color: #2d5016;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+
+        .container-status-value {
+            font-size: 14px;
+            color: #333;
+        }
+
+        .container-status-value.none {
+            color: #999;
+            font-style: italic;
+        }
+
+        .badge-running {
+            display: inline-block;
+            background: #2d7016;
+            color: white;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-stopped {
+            display: inline-block;
+            background: #aaa;
+            color: white;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-activate {
+            background: #1a6e36;
+            color: white;
+        }
+
+        .btn-activate:hover {
+            background: #145228;
+        }
+
+        .btn-activate:disabled {
+            background: #aaa;
+            cursor: not-allowed;
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+
+            .header-right {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .scenarios-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎮 Spare Time Gaming - Scenario Manager</h1>
+        <div class="header-right">
+            <div class="user-info">👤 {{ username }}</div>
+            <a href="/logout" class="logout-btn">Logout</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div id="alertSuccess" class="alert success"></div>
+        <div id="alertError" class="alert error"></div>
+
+        <!-- Upload Section -->
+        <div class="section">
+            <h2>📤 Upload New Scenario</h2>
+            <div class="upload-area" id="uploadArea">
+                <p>Drop JSON file here or click to upload</p>
+                <small>Drag and drop a scenario .json file, or click to select</small>
+                <input type="file" id="fileInput" accept=".json">
+            </div>
+        </div>
+
+        <!-- Active Container Panel -->
+        <div class="section">
+            <h2>🐳 Active Server Container</h2>
+            <div class="container-status-panel" id="activeContainerPanel">
+                <span class="container-status-label">Running:</span>
+                <span class="container-status-value none" id="activeContainerName">Loading...</span>
+            </div>
+        </div>
+
+        <!-- Scenarios Section -->
+        <div class="section">
+            <h2>📋 Available Scenarios</h2>
+            <div class="scenarios-grid" id="scenariosGrid">
+                <div class="empty-state">
+                    <p>Loading scenarios...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const scenariosGrid = document.getElementById('scenariosGrid');
+        const alertSuccess = document.getElementById('alertSuccess');
+        const alertError = document.getElementById('alertError');
+
+        // Upload handlers
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            handleFileUpload(e.dataTransfer.files[0]);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            handleFileUpload(e.target.files[0]);
+        });
+
+        function handleFileUpload(file) {
+            if (!file) return;
+
+            if (!file.name.endsWith('.json')) {
+                showAlert('Only JSON files allowed', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const originalText = uploadArea.querySelector('p').textContent;
+            uploadArea.querySelector('p').innerHTML = '<div class="loading"></div> Uploading...';
+
+            fetch('/api/scenarios/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                uploadArea.querySelector('p').textContent = originalText;
+                fileInput.value = '';
+
+                if (data.success) {
+                    showAlert(`✓ Uploaded ${file.name}`, 'success');
+                    loadScenarios();
+                } else {
+                    showAlert(`✗ ${data.error}`, 'error');
+                }
+            })
+            .catch(err => {
+                uploadArea.querySelector('p').textContent = originalText;
+                showAlert(`✗ Upload failed: ${err}`, 'error');
+            });
+        }
+
+        // Container status map: scenario_name (no ext) -> 'running'|'exited'|...
+        let containerStatuses = {};
+
+        function loadContainerStatus() {
+            fetch('/api/containers/status')
+                .then(r => r.ok ? r.json() : [])
+                .then(containers => {
+                    containerStatuses = {};
+                    let runningName = null;
+                    containers.forEach(c => {
+                        containerStatuses[c.scenario] = c.status;
+                        if (c.status === 'running') runningName = c.container_name;
+                    });
+                    const el = document.getElementById('activeContainerName');
+                    if (runningName) {
+                        el.className = 'container-status-value';
+                        el.innerHTML = `<strong>${runningName}</strong> <span class="badge-running">RUNNING</span>`;
+                    } else {
+                        el.className = 'container-status-value none';
+                        el.textContent = 'None';
+                    }
+                    // Refresh badges on existing cards without full re-render
+                    Object.entries(containerStatuses).forEach(([scenario, status]) => {
+                        const badge = document.getElementById(`badge-${scenario}`);
+                        if (badge) {
+                            badge.className = status === 'running' ? 'badge-running' : 'badge-stopped';
+                            badge.textContent = status === 'running' ? 'RUNNING' : 'STOPPED';
+                        }
+                    });
+                })
+                .catch(() => {});
+        }
+
+        function loadScenarios() {
+            Promise.all([
+                fetch('/api/scenarios').then(r => r.json()),
+                fetch('/api/containers/status').then(r => r.ok ? r.json() : []).catch(() => [])
+            ]).then(([scenarios, containers]) => {
+                    containerStatuses = {};
+                    let runningName = null;
+                    containers.forEach(c => {
+                        containerStatuses[c.scenario] = c.status;
+                        if (c.status === 'running') runningName = c.container_name;
+                    });
+
+                    const el = document.getElementById('activeContainerName');
+                    if (runningName) {
+                        el.className = 'container-status-value';
+                        el.innerHTML = `<strong>${runningName}</strong> <span class="badge-running">RUNNING</span>`;
+                    } else {
+                        el.className = 'container-status-value none';
+                        el.textContent = 'None';
+                    }
+
+                    if (scenarios.length === 0) {
+                        scenariosGrid.innerHTML = '<div class="empty-state"><p>No scenarios uploaded yet</p></div>';
+                        return;
+                    }
+
+                    scenariosGrid.innerHTML = scenarios.map(scenario => {
+                        const scenarioKey = scenario.name; // filename without .json
+                        const cStatus = containerStatuses[scenarioKey];
+                        const isRunning = cStatus === 'running';
+                        const hasContainer = cStatus !== undefined;
+
+                        const statusBadge = hasContainer
+                            ? `<span id="badge-${scenarioKey}" class="${isRunning ? 'badge-running' : 'badge-stopped'}">${isRunning ? 'RUNNING' : 'STOPPED'}</span>`
+                            : '';
+
+                        return `
+                        <div class="scenario-card ${scenario.is_active ? 'active' : ''}">
+                            <div class="scenario-name">${scenario.name} ${statusBadge}</div>
+
+                            <div class="scenario-detail">
+                                <span class="scenario-detail-label">Map:</span>
+                                <span class="scenario-detail-value">${scenario.map || 'N/A'}</span>
+                            </div>
+
+                            <div class="scenario-detail">
+                                <span class="scenario-detail-label">Mods:</span>
+                                <span class="scenario-detail-value">${scenario.mod_count}</span>
+                            </div>
+
+                            <div class="scenario-detail">
+                                <span class="scenario-detail-label">Players:</span>
+                                <span class="scenario-detail-value">${scenario.max_players || 'N/A'}</span>
+                            </div>
+
+                            <div class="scenario-detail">
+                                <span class="scenario-detail-label">Size:</span>
+                                <span class="scenario-detail-value">${(scenario.size / 1024).toFixed(1)} KB</span>
+                            </div>
+
+                            ${scenario.is_active ? '<div class="active-badge">✓ ACTIVE CONFIG</div>' : ''}
+
+                            <div class="scenario-actions">
+                                ${!isRunning ? `
+                                    <button class="btn btn-activate" id="activate-${scenarioKey}" onclick="activateContainer('${scenarioKey}', this)">Activate</button>
+                                ` : ''}
+                                ${!scenario.is_active ? `
+                                    <button class="btn btn-primary" onclick="setActive('${scenario.filename}')">Set Config</button>
+                                ` : ''}
+                                <button class="btn btn-check" onclick="checkMods('${scenario.filename}', this)">Check Mods</button>
+                                <button class="btn btn-secondary" onclick="downloadScenario('${scenario.filename}')">Download</button>
+                                <button class="btn btn-danger" onclick="deleteScenario('${scenario.filename}')">Delete</button>
+                            </div>
+                        </div>`;
+                    }).join('');
+                })
+                .catch(err => {
+                    scenariosGrid.innerHTML = '<div class="empty-state"><p>Error loading scenarios</p></div>';
+                    console.error(err);
+                });
+        }
+
+        function activateContainer(scenario, btn) {
+            if (!confirm(`Stop current server and start "${scenario}"?`)) return;
+            btn.disabled = true;
+            btn.textContent = 'Starting...';
+            fetch('/api/containers/activate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ scenario })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    showAlert(`✗ ${data.error}`, 'error');
+                    btn.disabled = false;
+                    btn.textContent = 'Activate';
+                } else {
+                    const stopped = data.stopped ? ` (stopped ${data.stopped})` : '';
+                    showAlert(`✓ Started ${data.activated}${stopped}`, 'success');
+                    setTimeout(loadScenarios, 2000);
+                }
+            })
+            .catch(err => {
+                showAlert(`✗ Error: ${err}`, 'error');
+                btn.disabled = false;
+                btn.textContent = 'Activate';
+            });
+        }
+
+        function setActive(filename) {
+            fetch('/api/scenarios/set-active', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ scenario_name: filename })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert(`✓ Activated scenario`, 'success');
+                    loadScenarios();
+                } else {
+                    showAlert(`✗ ${data.error}`, 'error');
+                }
+            })
+            .catch(err => showAlert(`✗ Error: ${err}`, 'error'));
+        }
+
+        function downloadScenario(filename) {
+            window.location.href = `/api/scenarios/download/${filename}`;
+        }
+
+        function deleteScenario(filename) {
+            if (!confirm(`Delete "${filename}"?`)) return;
+
+            fetch(`/api/scenarios/delete/${filename}`, { method: 'DELETE' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        showAlert('✓ Scenario deleted', 'success');
+                        loadScenarios();
+                    } else {
+                        showAlert(`✗ ${data.error}`, 'error');
+                    }
+                })
+                .catch(err => showAlert(`✗ Error: ${err}`, 'error'));
+        }
+
+        function checkMods(filename, btn) {
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.innerHTML = '<div class="loading"></div>';
+
+            fetch(`/api/scenarios/check-mods/${filename}`, { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+
+                    if (data.success) {
+                        let msg;
+                        if (data.added_count > 0) {
+                            msg = `✓ Check passed — ${data.added_count} missing dep(s) added, list reordered. Total: ${data.total_mods} mods.`;
+                            if (data.added_mods.length > 0)
+                                msg += ` Added: ${data.added_mods.join(', ')}`;
+                        } else if (data.warnings.length > 0) {
+                            msg = `⚠ Check passed with ${data.warnings.length} warning(s). See server log.`;
+                        } else {
+                            msg = `✓ All mods OK — ${data.total_mods} mods in correct load order.`;
+                        }
+                        showAlert(msg, 'success');
+                        loadScenarios();
+                    } else {
+                        showAlert(`✗ ${data.error}`, 'error');
+                    }
+                })
+                .catch(err => {
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                    showAlert(`✗ Error: ${err}`, 'error');
+                });
+        }
+
+        function showAlert(message, type) {
+            const alert = type === 'success' ? alertSuccess : alertError;
+            alert.textContent = message;
+            alert.style.display = 'block';
+            setTimeout(() => { alert.style.display = 'none'; }, 5000);
+        }
+
+        // Load on page load, then poll container status every 10s
+        loadScenarios();
+        setInterval(loadContainerStatus, 10000);
+    </script>
+</body>
+</html>
