@@ -24,8 +24,18 @@ services:
     environment:
       SCENARIOS_PATH: /scenarios
       SECRET_KEY: ${SECRET_KEY}
+      HTTPS_ONLY: "true"
     depends_on:
       - portainer
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    env_file: .env
+    depends_on:
+      - scenario-manager
 
   # ── IPC PVE servers ─────────────────────────────────────────────────────────
   # cpuset pins to CCD0 on Ryzen 9 7950X (cores 0-7 + SMT siblings 16-23).

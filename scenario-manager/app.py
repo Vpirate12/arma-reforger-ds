@@ -8,6 +8,7 @@ from functools import wraps
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+from werkzeug.middleware.proxy_fix import ProxyFix
 import logging
 import requests as http_requests
 
@@ -23,6 +24,15 @@ except Exception as _docker_err:
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'change-this-in-production')
+
+# Trust X-Forwarded-Proto from Cloudflare Tunnel so Flask sees HTTPS correctly
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
+# Secure cookies when running behind Cloudflare Tunnel (HTTPS_ONLY=true)
+if os.environ.get('HTTPS_ONLY', 'false').lower() == 'true':
+    app.config['SESSION_COOKIE_SECURE'] = True
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
 # Configuration
 UPLOAD_FOLDER = os.environ.get('SCENARIOS_PATH', '/scenarios')
@@ -260,6 +270,11 @@ def logout():
     return redirect(url_for('login'))
 
 # Routes - Dashboard
+@app.route('/create')
+@login_required
+def create_scenario():
+    return render_template('create.html', username=session.get('username'))
+
 @app.route('/')
 @login_required
 def dashboard():
@@ -510,6 +525,123 @@ def api_containers_logs(scenario):
         return jsonify({'error': f'Container {container_name} not found'}), 404
     except Exception as e:
         logger.error(f"Logs error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+# ---------------------------------------------------------------------------
+# Scenario creator
+# ---------------------------------------------------------------------------
+
+@app.route('/api/mods/lookup', methods=['POST'])
+@login_required
+def api_mods_lookup():
+    """Batch-look up mod IDs on the BI workshop. Returns list of {modId, name, error}."""
+    data = request.get_json()
+    ids = data.get('ids', [])
+    if not ids:
+        return jsonify([])
+    results = []
+    for mod_id in ids:
+        mod_id = mod_id.strip().upper()
+        if not mod_id:
+            continue
+        name, _dep_ids, _dep_names = _fetch_mod_page_data(mod_id)
+        if name == mod_id:
+            results.append({'modId': mod_id, 'name': None, 'error': 'Not found'})
+        else:
+            results.append({'modId': mod_id, 'name': name, 'error': None})
+    return jsonify(results)
+
+@app.route('/api/scenarios/create', methods=['POST'])
+@login_required
+def api_scenarios_create():
+    """Build a server.json from form data and save to SCENARIOS_PATH."""
+    data = request.get_json()
+
+    filename = secure_filename((data.get('filename') or '').strip())
+    if not filename:
+        return jsonify({'error': 'Filename is required'}), 400
+    if not filename.endswith('.json'):
+        filename += '.json'
+
+    server_name = (data.get('serverName') or '').strip()
+    if not server_name:
+        return jsonify({'error': 'Server name is required'}), 400
+
+    scenario_id = (data.get('scenarioId') or '').strip()
+    if not scenario_id:
+        return jsonify({'error': 'Scenario ID is required'}), 400
+
+    try:
+        bind_port = int(data.get('bindPort', 2001))
+        max_players = int(data.get('maxPlayers', 16))
+        view_distance = int(data.get('viewDistance', 1200))
+        ai_limit = int(data.get('aiLimit', -1))
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Invalid numeric field'}), 400
+
+    mods = data.get('mods', [])
+
+    config = {
+        'bindAddress': '0.0.0.0',
+        'bindPort': bind_port,
+        'publicAddress': '',
+        'publicPort': bind_port,
+        'a2s': {'address': '0.0.0.0', 'port': 17777},
+        'rcon': {
+            'address': '0.0.0.0',
+            'port': 19999,
+            'password': data.get('rconPassword', ''),
+            'permission': 'monitor',
+            'blacklist': [],
+            'whitelist': [],
+            'maxClients': 16
+        },
+        'game': {
+            'name': server_name,
+            'password': data.get('serverPassword', ''),
+            'passwordAdmin': data.get('adminPassword', ''),
+            'admins': [],
+            'scenarioId': scenario_id,
+            'maxPlayers': max_players,
+            'visible': True,
+            'crossPlatform': bool(data.get('crossPlatform', True)),
+            'supportedPlatforms': ['PLATFORM_PC', 'PLATFORM_XBL', 'PLATFORM_PSN'],
+            'gameProperties': {
+                'serverMaxViewDistance': view_distance,
+                'serverMinGrassDistance': 50,
+                'networkViewDistance': 1000,
+                'disableThirdPerson': bool(data.get('disableThirdPerson', False)),
+                'fastValidation': True,
+                'battlEye': bool(data.get('battlEye', True)),
+                'VONDisableUI': False,
+                'VONDisableDirectSpeechUI': False,
+                'VONCanTransmitCrossFaction': False
+            },
+            'mods': [{'modId': m['modId'], 'name': m['name'], 'version': ''} for m in mods],
+            'modsRequiredByDefault': True
+        },
+        'operating': {
+            'lobbyPlayerSynchronise': True,
+            'playerSaveTime': 120,
+            'aiLimit': ai_limit,
+            'slotReservationTimeout': 60,
+            'disableNavmeshStreaming': [],
+            'disableServerShutdown': False,
+            'disableCrashReporter': False,
+            'disableAI': False,
+            'joinQueue': {'maxSize': 0}
+        }
+    }
+
+    try:
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        with open(filepath, 'w') as f:
+            json.dump(config, f, indent=2)
+        logger.info(f"User {session.get('username')} created scenario {filename}")
+        return jsonify({'success': True, 'filename': filename})
+    except Exception as e:
+        logger.error(f"Create scenario error: {e}")
         return jsonify({'error': str(e)}), 500
 
 # Health check

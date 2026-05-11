@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Scenario - Spare Time Gaming</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            color: #333;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2d5016 0%, #1a3a0a 100%);
+            color: white;
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header h1 { font-size: 24px; }
+
+        .header-right { display: flex; gap: 20px; align-items: center; }
+
+        .header a {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            transition: background 0.3s;
+        }
+
+        .header a:hover { background: rgba(255,255,255,0.3); }
+
+        .container { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
+
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .section h2 {
+            color: #2d5016;
+            margin-bottom: 20px;
+            font-size: 18px;
+            border-bottom: 2px solid #2d5016;
+            padding-bottom: 10px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group.full { grid-column: 1 / -1; }
+
+        label { font-size: 13px; font-weight: 600; color: #444; }
+        label .hint { font-weight: 400; color: #888; margin-left: 6px; }
+
+        input[type="text"], input[type="number"], input[type="password"], textarea {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #2d5016;
+        }
+
+        textarea { resize: vertical; min-height: 100px; font-family: monospace; font-size: 13px; }
+
+        .checkbox-row {
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+            margin-top: 4px;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        input[type="checkbox"] { width: 16px; height: 16px; accent-color: #2d5016; cursor: pointer; }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .btn-primary { background: #2d5016; color: white; }
+        .btn-primary:hover { background: #1a3a0a; }
+        .btn-primary:disabled { background: #aaa; cursor: not-allowed; }
+
+        .btn-secondary { background: #e9ecef; color: #555; }
+        .btn-secondary:hover { background: #dee2e6; }
+
+        .btn-activate { background: #1a6e36; color: white; }
+        .btn-activate:hover { background: #145228; }
+        .btn-activate:disabled { background: #aaa; cursor: not-allowed; }
+
+        .lookup-row {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+        }
+
+        .lookup-row textarea { flex: 1; }
+
+        .mod-list { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+
+        .mod-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: #f0f4e8;
+            border: 1px solid #c8dba0;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .mod-item.error {
+            background: #fff0f0;
+            border-color: #f5c6c6;
+        }
+
+        .mod-item-name { font-weight: 600; color: #2d5016; }
+        .mod-item-id { color: #888; font-family: monospace; margin-left: 8px; }
+        .mod-item-error { color: #c92a2a; }
+
+        .mod-remove {
+            background: none;
+            border: none;
+            color: #c92a2a;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 0 4px;
+            line-height: 1;
+        }
+
+        .mod-remove:hover { color: #a00; }
+
+        .mod-count {
+            font-size: 12px;
+            color: #666;
+            margin-top: 6px;
+        }
+
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            display: none;
+            font-size: 14px;
+        }
+
+        .alert.success { background: #e8f5e9; color: #2d5016; border-left: 4px solid #2d5016; }
+        .alert.error   { background: #ffe8e8; color: #c92a2a; border-left: 4px solid #c92a2a; }
+
+        .loading {
+            display: inline-block;
+            width: 14px; height: 14px;
+            border: 2px solid #ddd;
+            border-top-color: #2d5016;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            vertical-align: middle;
+            margin-right: 6px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 8px; }
+
+        @media (max-width: 640px) {
+            .form-grid { grid-template-columns: 1fr; }
+            .form-group.full { grid-column: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎮 Spare Time Gaming - Create Scenario</h1>
+        <div class="header-right">
+            <span style="font-size:14px;opacity:0.9;">👤 {{ username }}</span>
+            <a href="/">← Dashboard</a>
+            <a href="/logout">Logout</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div id="alertSuccess" class="alert success"></div>
+        <div id="alertError" class="alert error"></div>
+
+        <!-- Server Settings -->
+        <div class="section">
+            <h2>⚙️ Server Settings</h2>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Output Filename <span class="hint">(.json added automatically)</span></label>
+                    <input type="text" id="filename" placeholder="e.g. ipc_everon_custom">
+                </div>
+                <div class="form-group">
+                    <label>Server Name</label>
+                    <input type="text" id="serverName" placeholder="SpareTimeGaming @ Everon">
+                </div>
+                <div class="form-group">
+                    <label>Server Password <span class="hint">optional</span></label>
+                    <input type="password" id="serverPassword" placeholder="Leave blank for public">
+                </div>
+                <div class="form-group">
+                    <label>Admin Password</label>
+                    <input type="password" id="adminPassword" placeholder="Required">
+                </div>
+                <div class="form-group">
+                    <label>RCON Password <span class="hint">optional</span></label>
+                    <input type="password" id="rconPassword" placeholder="Leave blank to disable">
+                </div>
+                <div class="form-group">
+                    <label>Max Players</label>
+                    <input type="number" id="maxPlayers" value="16" min="1" max="256">
+                </div>
+                <div class="form-group">
+                    <label>Bind Port</label>
+                    <input type="number" id="bindPort" value="2001" min="1024" max="65535">
+                </div>
+                <div class="form-group">
+                    <label>Server Max View Distance</label>
+                    <input type="number" id="viewDistance" value="1200" min="500" max="10000">
+                </div>
+                <div class="form-group">
+                    <label>AI Limit <span class="hint">-1 = unlimited</span></label>
+                    <input type="number" id="aiLimit" value="-1" min="-1">
+                </div>
+                <div class="form-group full">
+                    <label>Scenario ID
+                        <span class="hint">e.g. {1B4745C0D4B6DB89}Missions/PVE_Everon_US_WZ.conf</span>
+                    </label>
+                    <input type="text" id="scenarioId" placeholder="{GUID}Missions/MapName.conf">
+                </div>
+                <div class="form-group full">
+                    <label>Options</label>
+                    <div class="checkbox-row">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="crossPlatform" checked> Cross Platform (PC + Console)
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="battlEye" checked> BattlEye
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="disableThirdPerson"> Disable Third Person
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mods -->
+        <div class="section">
+            <h2>🧩 Mods</h2>
+            <p style="font-size:13px;color:#666;margin-bottom:12px;">
+                Paste mod IDs one per line or comma-separated. Find IDs in the workshop URL:<br>
+                <code style="font-size:12px;">reforger.armaplatform.com/workshop/<strong>5F268647F8A1A1F4</strong></code>
+            </p>
+            <div class="lookup-row">
+                <textarea id="modInput" placeholder="5F268647F8A1A1F4&#10;631CD0023FD58D35&#10;64ED6553B8AF6B62"></textarea>
+                <button class="btn btn-primary" id="lookupBtn" onclick="lookupMods()">Look Up Mods</button>
+            </div>
+            <div id="lookupStatus" style="font-size:13px;color:#666;margin-top:8px;min-height:18px;"></div>
+            <div class="mod-list" id="modList"></div>
+            <div class="mod-count" id="modCount"></div>
+        </div>
+
+        <!-- Actions -->
+        <div class="section">
+            <div class="actions">
+                <a href="/" class="btn btn-secondary">Cancel</a>
+                <button class="btn btn-activate" id="generateBtn" onclick="generateScenario()">Generate &amp; Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // mods array: [{modId, name}]
+        let mods = [];
+
+        function parsePastedIds(raw) {
+            return raw
+                .split(/[\n,]+/)
+                .map(s => s.trim().toUpperCase())
+                .filter(s => /^[0-9A-F]{16}$/.test(s));
+        }
+
+        async function lookupMods() {
+            const raw = document.getElementById('modInput').value;
+            const ids = parsePastedIds(raw);
+            if (ids.length === 0) {
+                showStatus('No valid 16-character hex IDs found.', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('lookupBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading"></span>Looking up...';
+
+            const status = document.getElementById('lookupStatus');
+            status.textContent = `Resolving 0 / ${ids.length}...`;
+
+            // Batch all IDs in one request
+            let results;
+            try {
+                const resp = await fetch('/api/mods/lookup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids })
+                });
+                results = await resp.json();
+            } catch (err) {
+                showStatus(`Network error: ${err}`, 'error');
+                btn.disabled = false;
+                btn.textContent = 'Look Up Mods';
+                return;
+            }
+
+            status.textContent = `Resolved ${results.length} / ${ids.length} IDs.`;
+
+            // Merge into mods list (skip duplicates)
+            const existing = new Set(mods.map(m => m.modId));
+            results.forEach(r => {
+                if (!existing.has(r.modId)) {
+                    mods.push({ modId: r.modId, name: r.name, error: r.error });
+                    existing.add(r.modId);
+                }
+            });
+
+            renderModList();
+            btn.disabled = false;
+            btn.textContent = 'Look Up Mods';
+        }
+
+        function renderModList() {
+            const list = document.getElementById('modList');
+            const count = document.getElementById('modCount');
+
+            if (mods.length === 0) {
+                list.innerHTML = '';
+                count.textContent = '';
+                return;
+            }
+
+            list.innerHTML = mods.map((m, i) => `
+                <div class="mod-item ${m.error ? 'error' : ''}">
+                    <div>
+                        ${m.error
+                            ? `<span class="mod-item-error">⚠ ${m.modId} — ${m.error}</span>`
+                            : `<span class="mod-item-name">${m.name}</span><span class="mod-item-id">${m.modId}</span>`
+                        }
+                    </div>
+                    <button class="mod-remove" onclick="removeMod(${i})" title="Remove">✕</button>
+                </div>`).join('');
+
+            const valid = mods.filter(m => !m.error).length;
+            const invalid = mods.length - valid;
+            count.textContent = `${valid} mod${valid !== 1 ? 's' : ''} ready` +
+                (invalid > 0 ? ` · ${invalid} with errors (will be excluded)` : '');
+        }
+
+        function removeMod(index) {
+            mods.splice(index, 1);
+            renderModList();
+        }
+
+        async function generateScenario() {
+            const filename = document.getElementById('filename').value.trim();
+            const serverName = document.getElementById('serverName').value.trim();
+            const scenarioId = document.getElementById('scenarioId').value.trim();
+
+            if (!filename) { showAlert('Filename is required.', 'error'); return; }
+            if (!serverName) { showAlert('Server name is required.', 'error'); return; }
+            if (!scenarioId) { showAlert('Scenario ID is required.', 'error'); return; }
+
+            const validMods = mods.filter(m => !m.error);
+
+            const payload = {
+                filename,
+                serverName,
+                serverPassword: document.getElementById('serverPassword').value,
+                adminPassword: document.getElementById('adminPassword').value,
+                rconPassword: document.getElementById('rconPassword').value,
+                scenarioId,
+                maxPlayers: parseInt(document.getElementById('maxPlayers').value) || 16,
+                bindPort: parseInt(document.getElementById('bindPort').value) || 2001,
+                viewDistance: parseInt(document.getElementById('viewDistance').value) || 1200,
+                aiLimit: parseInt(document.getElementById('aiLimit').value) ?? -1,
+                crossPlatform: document.getElementById('crossPlatform').checked,
+                battlEye: document.getElementById('battlEye').checked,
+                disableThirdPerson: document.getElementById('disableThirdPerson').checked,
+                mods: validMods.map(m => ({ modId: m.modId, name: m.name }))
+            };
+
+            const btn = document.getElementById('generateBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading"></span>Saving...';
+
+            try {
+                const resp = await fetch('/api/scenarios/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    showAlert(`✓ Saved as ${data.filename} — redirecting to dashboard...`, 'success');
+                    setTimeout(() => { window.location.href = '/'; }, 1500);
+                } else {
+                    showAlert(`✗ ${data.error}`, 'error');
+                    btn.disabled = false;
+                    btn.textContent = 'Generate & Save';
+                }
+            } catch (err) {
+                showAlert(`✗ Network error: ${err}`, 'error');
+                btn.disabled = false;
+                btn.textContent = 'Generate & Save';
+            }
+        }
+
+        function showAlert(msg, type) {
+            const el = type === 'success'
+                ? document.getElementById('alertSuccess')
+                : document.getElementById('alertError');
+            el.textContent = msg;
+            el.style.display = 'block';
+            if (type !== 'success') setTimeout(() => { el.style.display = 'none'; }, 6000);
+        }
+
+        function showStatus(msg, type) {
+            const el = document.getElementById('lookupStatus');
+            el.textContent = msg;
+            el.style.color = type === 'error' ? '#c92a2a' : '#666';
+        }
+    </script>
+</body>
+</html>
