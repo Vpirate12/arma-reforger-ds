@@ -21,9 +21,9 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - D:/Longbow/scenarios/Testing:/scenarios
+    env_file: .env
     environment:
       SCENARIOS_PATH: /scenarios
-      SECRET_KEY: ${SECRET_KEY}
       HTTPS_ONLY: "true"
     depends_on:
       - portainer

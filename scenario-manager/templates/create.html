@@ -72,16 +72,17 @@
         label { font-size: 13px; font-weight: 600; color: #444; }
         label .hint { font-weight: 400; color: #888; margin-left: 6px; }
 
-        input[type="text"], input[type="number"], input[type="password"], textarea {
+        input[type="text"], input[type="number"], input[type="password"], textarea, select {
             padding: 8px 12px;
             border: 1px solid #ddd;
             border-radius: 6px;
             font-size: 14px;
             font-family: inherit;
             transition: border-color 0.2s;
+            background: white;
         }
 
-        input:focus, textarea:focus {
+        input:focus, textarea:focus, select:focus {
             outline: none;
             border-color: #2d5016;
         }
@@ -261,10 +262,58 @@
                     <input type="number" id="aiLimit" value="-1" min="-1">
                 </div>
                 <div class="form-group full">
-                    <label>Scenario ID
-                        <span class="hint">e.g. {1B4745C0D4B6DB89}Missions/PVE_Everon_US_WZ.conf</span>
-                    </label>
-                    <input type="text" id="scenarioId" placeholder="{GUID}Missions/MapName.conf">
+                    <label>Scenario ID</label>
+                    <select id="scenarioIdSelect" onchange="onScenarioSelectChange()">
+                        <option value="">— Select a scenario —</option>
+                        <optgroup label="Conflict">
+                            <option value="{ECC61978EDCC2B5A}Missions/23_Campaign.conf">Conflict - Everon</option>
+                            <option value="{C700DB41F0C546E1}Missions/23_Campaign_NorthCentral.conf">Conflict - Northern Everon</option>
+                            <option value="{28802845ADA64D52}Missions/23_Campaign_SWCoast.conf">Conflict - Southern Everon</option>
+                            <option value="{94992A3D7CE4FF8A}Missions/23_Campaign_Western.conf">Conflict - Western Everon</option>
+                            <option value="{FDE33AFE2ED7875B}Missions/23_Campaign_Montignac.conf">Conflict - Montignac</option>
+                            <option value="{C41618FD18E9D714}Missions/23_Campaign_Arland.conf">Conflict - Arland</option>
+                        </optgroup>
+                        <optgroup label="Conflict: HQ Commander">
+                            <option value="{0220741028718E7F}Missions/23_Campaign_HQC_Everon.conf">Conflict: HQ Commander - Everon</option>
+                            <option value="{68D1240A11492545}Missions/23_Campaign_HQC_Arland.conf">Conflict: HQ Commander - Arland</option>
+                            <option value="{BB5345C22DD2B655}Missions/23_Campaign_HQC_Cain.conf">Conflict: HQ Commander - Kolguyev</option>
+                        </optgroup>
+                        <optgroup label="Combat Ops">
+                            <option value="{DAA03C6E6099D50F}Missions/24_CombatOps.conf">Combat Ops - Arland</option>
+                            <option value="{DFAC5FABD11F2390}Missions/26_CombatOpsEveron.conf">Combat Ops - Everon</option>
+                            <option value="{CB347F2F10065C9C}Missions/CombatOpsCain.conf">Combat Ops - Kolguyev</option>
+                        </optgroup>
+                        <optgroup label="Game Master">
+                            <option value="{59AD59368755F41A}Missions/21_GM_Eden.conf">Game Master - Everon</option>
+                            <option value="{2BBBE828037C6F4B}Missions/22_GM_Arland.conf">Game Master - Arland</option>
+                            <option value="{F45C6C15D31252E6}Missions/27_GM_Cain.conf">Game Master - Kolguyev</option>
+                        </optgroup>
+                        <optgroup label="Capture &amp; Hold">
+                            <option value="{3F2E005F43DBD2F8}Missions/CAH_Briars_Coast.conf">Capture &amp; Hold - Briars</option>
+                            <option value="{F1A1BEA67132113E}Missions/CAH_Castle.conf">Capture &amp; Hold - Montfort Castle</option>
+                            <option value="{589945FB9FA7B97D}Missions/CAH_Concrete_Plant.conf">Capture &amp; Hold - Concrete Plant</option>
+                            <option value="{9405201CBD22A30C}Missions/CAH_Factory.conf">Capture &amp; Hold - Almara Factory</option>
+                            <option value="{1CD06B409C6FAE56}Missions/CAH_Forest.conf">Capture &amp; Hold - Simon's Wood</option>
+                            <option value="{7C491B1FCC0FF0E1}Missions/CAH_LeMoule.conf">Capture &amp; Hold - Le Moule</option>
+                            <option value="{6EA2E454519E5869}Missions/CAH_Military_Base.conf">Capture &amp; Hold - Camp Blake</option>
+                            <option value="{2B4183DF23E88249}Missions/CAH_Morton.conf">Capture &amp; Hold - Morton</option>
+                        </optgroup>
+                        <optgroup label="Operation Omega">
+                            <option value="{10B8582BAD9F7040}Missions/Scenario01_Intro.conf">Operation Omega 01: Over The Hills And Far Away</option>
+                            <option value="{1D76AF6DC4DF0577}Missions/Scenario02_Steal.conf">Operation Omega 02: Radio Check</option>
+                            <option value="{D1647575BCEA5A05}Missions/Scenario03_Villa.conf">Operation Omega 03: Light In The Dark</option>
+                            <option value="{6D224A109B973DD8}Missions/Scenario04_Sabotage.conf">Operation Omega 04: Red Silence</option>
+                            <option value="{FA2AB0181129CB16}Missions/Scenario05_Hill.conf">Operation Omega 05: Cliffhanger</option>
+                        </optgroup>
+                        <optgroup label="Other">
+                            <option value="{002AF7323E0129AF}Missions/Tutorial.conf">Training</option>
+                            <option value="{C47A1A6245A13B26}Missions/SP01_ReginaV2.conf">Elimination</option>
+                            <option value="{0648CDB32D6B02B3}Missions/SP02_AirSupport.conf">Air Support</option>
+                        </optgroup>
+                        <optgroup label="From Mods" id="modScenariosGroup" style="display:none"></optgroup>
+                        <option value="__custom__">Custom / Manual Entry...</option>
+                    </select>
+                    <input type="text" id="scenarioIdCustom" placeholder="{GUID}Missions/MapName.conf" style="display:none;margin-top:6px;">
                 </div>
                 <div class="form-group full">
                     <label>Options</label>
@@ -309,6 +358,45 @@
     </div>
 
     <script>
+        function onScenarioSelectChange() {
+            const sel = document.getElementById('scenarioIdSelect');
+            const custom = document.getElementById('scenarioIdCustom');
+            const isCustom = sel.value === '__custom__';
+            custom.style.display = isCustom ? '' : 'none';
+            if (!isCustom) custom.value = '';
+        }
+
+        async function fetchModScenarios(modIds) {
+            const group = document.getElementById('modScenariosGroup');
+            group.innerHTML = '';
+            group.style.display = 'none';
+            try {
+                const resp = await fetch('/api/mods/scenarios', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: modIds })
+                });
+                const results = await resp.json();
+                if (results.length > 0) {
+                    results.forEach(r => {
+                        const opt = document.createElement('option');
+                        opt.value = r.scenarioId;
+                        opt.textContent = r.scenarioId;
+                        group.appendChild(opt);
+                    });
+                    group.style.display = '';
+                }
+            } catch (e) {
+                // silently ignore — mod scenario fetch is best-effort
+            }
+        }
+
+        function getScenarioId() {
+            const sel = document.getElementById('scenarioIdSelect');
+            if (sel.value === '__custom__') return document.getElementById('scenarioIdCustom').value.trim();
+            return sel.value;
+        }
+
         // mods array: [{modId, name}]
         let mods = [];
 
@@ -364,6 +452,10 @@
             renderModList();
             btn.disabled = false;
             btn.textContent = 'Look Up Mods';
+
+            // Fetch scenarios provided by these mods and add to dropdown
+            const validIds = results.filter(r => !r.error).map(r => r.modId);
+            if (validIds.length > 0) fetchModScenarios(validIds);
         }
 
         function renderModList() {
@@ -401,11 +493,11 @@
         async function generateScenario() {
             const filename = document.getElementById('filename').value.trim();
             const serverName = document.getElementById('serverName').value.trim();
-            const scenarioId = document.getElementById('scenarioId').value.trim();
+            const scenarioId = getScenarioId();
 
             if (!filename) { showAlert('Filename is required.', 'error'); return; }
             if (!serverName) { showAlert('Server name is required.', 'error'); return; }
-            if (!scenarioId) { showAlert('Scenario ID is required.', 'error'); return; }
+            if (!scenarioId) { showAlert('Scenario ID is required — select one or choose Custom.', 'error'); return; }
 
             const validMods = mods.filter(m => !m.error);
 

@@ -348,6 +348,115 @@
             cursor: not-allowed;
         }
 
+        .status-light {
+            display: inline-block;
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            margin-right: 6px;
+            vertical-align: middle;
+            flex-shrink: 0;
+        }
+        .status-green      { background: #2ecc71; box-shadow: 0 0 5px #2ecc71; }
+        .status-yellow     { background: #f1c40f; box-shadow: 0 0 5px #f1c40f; }
+        .status-red        { background: #e74c3c; box-shadow: 0 0 5px #e74c3c; }
+        .status-grey       { background: #ccc; }
+        .status-crash_loop { background: #e74c3c; animation: crash-pulse 0.8s ease-in-out infinite; }
+
+        @keyframes crash-pulse {
+            0%, 100% { box-shadow: 0 0 4px #e74c3c; opacity: 1; }
+            50%       { box-shadow: 0 0 10px #e74c3c; opacity: 0.5; }
+        }
+
+        .crash-banner {
+            background: #ffe8e8;
+            border: 1px solid #f5c6c6;
+            border-radius: 6px;
+            padding: 6px 10px;
+            margin-top: 10px;
+            font-size: 12px;
+            color: #c92a2a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-reset {
+            background: #c92a2a;
+            color: white;
+            font-size: 11px;
+            padding: 4px 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .btn-reset:hover { background: #a00; }
+
+        .base-mod-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 16px;
+            min-height: 36px;
+        }
+
+        .base-mod-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #f0f4e8;
+            border: 1px solid #c8dba0;
+            border-radius: 20px;
+            padding: 5px 12px;
+            font-size: 13px;
+        }
+
+        .base-mod-pill-name { font-weight: 600; color: #2d5016; }
+        .base-mod-pill-id   { color: #888; font-family: monospace; font-size: 11px; }
+
+        .base-mod-remove {
+            background: none;
+            border: none;
+            color: #c92a2a;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .base-mod-remove:hover { color: #a00; }
+
+        .base-mod-add-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .base-mod-add-row input {
+            padding: 7px 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 13px;
+            width: 200px;
+        }
+
+        .base-mod-add-row input:focus {
+            outline: none;
+            border-color: #2d5016;
+        }
+
+        .btn-sync {
+            background: #1a6e36;
+            color: white;
+        }
+
+        .btn-sync:hover { background: #145228; }
+        .btn-sync:disabled { background: #aaa; cursor: not-allowed; }
+
         @media (max-width: 768px) {
             .header {
                 flex-direction: column;
@@ -396,6 +505,21 @@
                 <span class="container-status-label">Running:</span>
                 <span class="container-status-value none" id="activeContainerName">Loading...</span>
             </div>
+        </div>
+
+        <!-- Base Mods Section -->
+        <div class="section">
+            <h2>🧩 Base Mods <span style="font-size:13px;font-weight:400;color:#666;margin-left:8px;">applied to every scenario via Sync</span></h2>
+            <div class="base-mod-list" id="baseModList">
+                <span style="color:#aaa;font-size:13px;">Loading...</span>
+            </div>
+            <div class="base-mod-add-row">
+                <input type="text" id="baseModIdInput" placeholder="Mod ID (16 hex chars)" maxlength="16">
+                <button class="btn btn-secondary" id="baseModLookupBtn" onclick="lookupBaseMod()" style="flex:none;padding:7px 14px;">Look Up</button>
+                <button class="btn btn-primary"   id="baseModAddBtn"    onclick="addBaseMod()"    style="flex:none;padding:7px 14px;" disabled>Add to Base</button>
+                <button class="btn btn-sync"      id="baseSyncBtn"      onclick="syncBaseMods()"  style="flex:none;padding:7px 14px;margin-left:auto;">Sync to All Scenarios</button>
+            </div>
+            <div id="baseModStatus" style="font-size:12px;color:#666;margin-top:8px;min-height:16px;"></div>
         </div>
 
         <!-- Scenarios Section -->
@@ -476,15 +600,21 @@
 
         // Container status map: scenario_name (no ext) -> 'running'|'exited'|...
         let containerStatuses = {};
+        let containerHealth   = {}; // scenario_name -> 'green'|'yellow'|'red'|'crash_loop'
+        let containerMeta     = {}; // scenario_name -> {restart_count, exit_code}
 
         function loadContainerStatus() {
             fetch('/api/containers/status')
                 .then(r => r.ok ? r.json() : [])
                 .then(containers => {
                     containerStatuses = {};
+                    containerHealth   = {};
+                    containerMeta     = {};
                     let runningName = null;
                     containers.forEach(c => {
                         containerStatuses[c.scenario] = c.status;
+                        containerHealth[c.scenario]   = c.health;
+                        containerMeta[c.scenario]     = { restart_count: c.restart_count, exit_code: c.exit_code };
                         if (c.status === 'running') runningName = c.container_name;
                     });
                     const el = document.getElementById('activeContainerName');
@@ -495,12 +625,22 @@
                         el.className = 'container-status-value none';
                         el.textContent = 'None';
                     }
-                    // Refresh badges on existing cards without full re-render
+                    // Refresh lights + badges on existing cards without full re-render
                     Object.entries(containerStatuses).forEach(([scenario, status]) => {
                         const badge = document.getElementById(`badge-${scenario}`);
                         if (badge) {
                             badge.className = status === 'running' ? 'badge-running' : 'badge-stopped';
                             badge.textContent = status === 'running' ? 'RUNNING' : 'STOPPED';
+                        }
+                        const light = document.getElementById(`light-${scenario}`);
+                        if (light) {
+                            const h = containerHealth[scenario] || 'red';
+                            light.className = `status-light status-${h}`;
+                            light.title = healthTitle(h);
+                        }
+                        const banner = document.getElementById(`crash-${scenario}`);
+                        if (banner) {
+                            banner.style.display = containerHealth[scenario] === 'crash_loop' ? '' : 'none';
                         }
                     });
                 })
@@ -513,9 +653,13 @@
                 fetch('/api/containers/status').then(r => r.ok ? r.json() : []).catch(() => [])
             ]).then(([scenarios, containers]) => {
                     containerStatuses = {};
+                    containerHealth   = {};
+                    containerMeta     = {};
                     let runningName = null;
                     containers.forEach(c => {
                         containerStatuses[c.scenario] = c.status;
+                        containerHealth[c.scenario]   = c.health;
+                        containerMeta[c.scenario]     = { restart_count: c.restart_count, exit_code: c.exit_code };
                         if (c.status === 'running') runningName = c.container_name;
                     });
 
@@ -538,6 +682,12 @@
                         const cStatus = containerStatuses[scenarioKey];
                         const isRunning = cStatus === 'running';
                         const hasContainer = cStatus !== undefined;
+                        const health = containerHealth[scenarioKey];
+
+                        const lightClass = !hasContainer ? 'status-grey' : `status-${health}`;
+                        const lightTip   = !hasContainer ? 'No container configured' : healthTitle(health);
+                        const meta       = containerMeta[scenarioKey] || {};
+                        const isCrashing = health === 'crash_loop';
 
                         const statusBadge = hasContainer
                             ? `<span id="badge-${scenarioKey}" class="${isRunning ? 'badge-running' : 'badge-stopped'}">${isRunning ? 'RUNNING' : 'STOPPED'}</span>`
@@ -545,7 +695,14 @@
 
                         return `
                         <div class="scenario-card ${scenario.is_active ? 'active' : ''}">
-                            <div class="scenario-name">${scenario.name} ${statusBadge}</div>
+                            <div class="scenario-name">
+                                <span id="light-${scenarioKey}" class="status-light ${lightClass}" title="${lightTip}"></span>${scenario.name} ${statusBadge}
+                            </div>
+                            ${isCrashing ? `
+                            <div class="crash-banner" id="crash-${scenarioKey}">
+                                <span>⚠ Crash loop — restarted ${meta.restart_count}× (exit ${meta.exit_code})</span>
+                                <button class="btn-reset" onclick="resetContainer('${scenarioKey}', this)">Reset</button>
+                            </div>` : `<div id="crash-${scenarioKey}" style="display:none"></div>`}
 
                             <div class="scenario-detail">
                                 <span class="scenario-detail-label">Map:</span>
@@ -560,6 +717,11 @@
                             <div class="scenario-detail">
                                 <span class="scenario-detail-label">Players:</span>
                                 <span class="scenario-detail-value">${scenario.max_players || 'N/A'}</span>
+                            </div>
+
+                            <div class="scenario-detail">
+                                <span class="scenario-detail-label">AI Limit:</span>
+                                <span class="scenario-detail-value">${scenario.ai_limit === -1 ? 'Unlimited' : scenario.ai_limit}</span>
                             </div>
 
                             <div class="scenario-detail">
@@ -697,8 +859,141 @@
             setTimeout(() => { alert.style.display = 'none'; }, 5000);
         }
 
+        function healthTitle(h) {
+            if (h === 'green')      return 'Online — accepting players';
+            if (h === 'yellow')     return 'Starting — not yet accepting players';
+            if (h === 'crash_loop') return 'Crash loop detected';
+            return 'Offline';
+        }
+
+        function resetContainer(scenario, btn) {
+            if (!confirm(`Stop and restart "${scenario}" to clear crash loop?`)) return;
+            btn.disabled = true;
+            btn.textContent = 'Resetting...';
+            fetch(`/api/containers/reset/${scenario}`, { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        showAlert(`✓ ${data.container} reset — restart count cleared`, 'success');
+                        setTimeout(loadScenarios, 3000);
+                    } else {
+                        showAlert(`✗ ${data.error}`, 'error');
+                        btn.disabled = false;
+                        btn.textContent = 'Reset';
+                    }
+                })
+                .catch(err => {
+                    showAlert(`✗ ${err}`, 'error');
+                    btn.disabled = false;
+                    btn.textContent = 'Reset';
+                });
+        }
+
+        // ── Base Mods ────────────────────────────────────────────────────────────
+
+        let pendingBaseMod = null; // {modId, name} resolved but not yet added
+
+        function loadBaseMods() {
+            fetch('/api/base-mods').then(r => r.json()).then(mods => {
+                const list = document.getElementById('baseModList');
+                if (mods.length === 0) {
+                    list.innerHTML = '<span style="color:#aaa;font-size:13px;">No base mods configured.</span>';
+                    return;
+                }
+                list.innerHTML = mods.map(m => `
+                    <div class="base-mod-pill">
+                        <span class="base-mod-pill-name">${m.name}</span>
+                        <span class="base-mod-pill-id">${m.modId}</span>
+                        <button class="base-mod-remove" onclick="removeBaseMod('${m.modId}')" title="Remove">✕</button>
+                    </div>`).join('');
+            }).catch(() => {});
+        }
+
+        async function lookupBaseMod() {
+            const id = document.getElementById('baseModIdInput').value.trim().toUpperCase();
+            if (!/^[0-9A-F]{16}$/.test(id)) {
+                setBaseModStatus('Enter a valid 16-character hex mod ID.', 'error'); return;
+            }
+            const btn = document.getElementById('baseModLookupBtn');
+            btn.disabled = true; btn.textContent = 'Looking up...';
+            setBaseModStatus('', '');
+            try {
+                const resp = await fetch('/api/mods/lookup', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ ids: [id] })
+                });
+                const results = await resp.json();
+                const r = results[0];
+                if (r && !r.error) {
+                    pendingBaseMod = { modId: r.modId, name: r.name };
+                    setBaseModStatus(`Found: ${r.name}`, 'ok');
+                    document.getElementById('baseModAddBtn').disabled = false;
+                } else {
+                    setBaseModStatus('Mod not found on workshop.', 'error');
+                    document.getElementById('baseModAddBtn').disabled = true;
+                }
+            } catch (e) {
+                setBaseModStatus('Lookup failed.', 'error');
+            }
+            btn.disabled = false; btn.textContent = 'Look Up';
+        }
+
+        async function addBaseMod() {
+            if (!pendingBaseMod) return;
+            const resp = await fetch('/api/base-mods', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(pendingBaseMod)
+            });
+            const data = await resp.json();
+            if (data.success) {
+                setBaseModStatus(`✓ ${pendingBaseMod.name} added to base mods.`, 'ok');
+                document.getElementById('baseModIdInput').value = '';
+                document.getElementById('baseModAddBtn').disabled = true;
+                pendingBaseMod = null;
+                loadBaseMods();
+            } else {
+                setBaseModStatus(`✗ ${data.error}`, 'error');
+            }
+        }
+
+        async function removeBaseMod(modId) {
+            const resp = await fetch(`/api/base-mods/${modId}`, { method: 'DELETE' });
+            const data = await resp.json();
+            if (data.success) loadBaseMods();
+            else setBaseModStatus(`✗ ${data.error}`, 'error');
+        }
+
+        async function syncBaseMods() {
+            const btn = document.getElementById('baseSyncBtn');
+            if (!confirm('Add any missing base mods to all scenario files?')) return;
+            btn.disabled = true; btn.textContent = 'Syncing...';
+            try {
+                const resp = await fetch('/api/scenarios/sync-base-mods', { method: 'POST' });
+                const data = await resp.json();
+                if (data.success) {
+                    const msg = data.updated > 0
+                        ? `✓ Synced base mods to ${data.updated} scenario(s): ${data.updatedFiles.join(', ')}`
+                        : '✓ All scenarios already have base mods.';
+                    showAlert(msg, 'success');
+                    if (data.updated > 0) loadScenarios();
+                } else {
+                    showAlert(`✗ ${data.error}`, 'error');
+                }
+            } catch (e) {
+                showAlert(`✗ Sync failed: ${e}`, 'error');
+            }
+            btn.disabled = false; btn.textContent = 'Sync to All Scenarios';
+        }
+
+        function setBaseModStatus(msg, type) {
+            const el = document.getElementById('baseModStatus');
+            el.textContent = msg;
+            el.style.color = type === 'error' ? '#c92a2a' : type === 'ok' ? '#2d5016' : '#666';
+        }
+
         // Load on page load, then poll container status every 10s
         loadScenarios();
+        loadBaseMods();
         setInterval(loadContainerStatus, 10000);
     </script>
 </body>

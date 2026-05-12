@@ -1,7 +1,10 @@
 import os
 import json
 import re
+import secrets
+import socket
 import sqlite3
+import urllib.parse
 from collections import deque
 from datetime import datetime
 from functools import wraps
@@ -34,6 +37,17 @@ if os.environ.get('HTTPS_ONLY', 'false').lower() == 'true':
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
+# OAuth configuration
+_OAUTH_BASE = os.environ.get('OAUTH_BASE_URL', 'http://localhost:5000')
+DISCORD_CLIENT_ID     = os.environ.get('DISCORD_CLIENT_ID')
+DISCORD_CLIENT_SECRET = os.environ.get('DISCORD_CLIENT_SECRET')
+DISCORD_GUILD_ID      = os.environ.get('DISCORD_GUILD_ID')
+DISCORD_REDIRECT_URI  = f"{_OAUTH_BASE}/auth/discord/callback"
+GOOGLE_CLIENT_ID      = os.environ.get('GOOGLE_CLIENT_ID')
+GOOGLE_CLIENT_SECRET  = os.environ.get('GOOGLE_CLIENT_SECRET')
+GOOGLE_REDIRECT_URI   = f"{_OAUTH_BASE}/auth/google/callback"
+ALLOWED_GOOGLE_EMAILS = {e.strip() for e in os.environ.get('ALLOWED_GOOGLE_EMAILS', '').split(',') if e.strip()}
+
 # Configuration
 UPLOAD_FOLDER = os.environ.get('SCENARIOS_PATH', '/scenarios')
 ALLOWED_EXTENSIONS = {'json'}
@@ -63,6 +77,17 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS mod_checks
                  (id INTEGER PRIMARY KEY, filename TEXT, added_count INTEGER,
                   warning_count INTEGER, total_mods INTEGER, created_at TEXT)''')
+
+    # Base mods — applied to every scenario via sync
+    c.execute('''CREATE TABLE IF NOT EXISTS base_mods
+                 (id INTEGER PRIMARY KEY, mod_id TEXT UNIQUE NOT NULL,
+                  name TEXT NOT NULL, added_at TEXT)''')
+
+    # OAuth user tracking
+    c.execute('''CREATE TABLE IF NOT EXISTS oauth_users
+                 (id INTEGER PRIMARY KEY, provider TEXT NOT NULL,
+                  provider_user_id TEXT NOT NULL, username TEXT NOT NULL,
+                  email TEXT, UNIQUE(provider, provider_user_id))''')
 
     conn.commit()
     conn.close()
@@ -116,6 +141,7 @@ def get_scenario_info(filename):
         except:
             map_name = 'Unknown'
 
+        operating = data.get('operating', {})
         return {
             'name': filename.replace('.json', ''),
             'filename': filename,
@@ -123,6 +149,7 @@ def get_scenario_info(filename):
             'map': map_name,
             'server_name': game_info.get('name', 'Unknown'),
             'max_players': game_info.get('maxPlayers', 'Unknown'),
+            'ai_limit': operating.get('aiLimit', -1),
             'size': os.path.getsize(filepath),
             'modified': datetime.fromtimestamp(os.path.getmtime(filepath)).isoformat()
         }
@@ -263,6 +290,108 @@ def login():
             return render_template('login.html', error='Invalid credentials')
 
     return render_template('login.html')
+
+@app.route('/login/discord')
+def login_discord():
+    state = secrets.token_urlsafe(16)
+    session['oauth_state'] = state
+    params = {
+        'client_id': DISCORD_CLIENT_ID,
+        'redirect_uri': DISCORD_REDIRECT_URI,
+        'response_type': 'code',
+        'scope': 'identify email guilds',
+        'state': state,
+    }
+    return redirect('https://discord.com/oauth2/authorize?' + urllib.parse.urlencode(params, quote_via=urllib.parse.quote))
+
+@app.route('/auth/discord/callback')
+def auth_discord_callback():
+    code = request.args.get('code')
+    state = request.args.get('state')
+    if not code or state != session.pop('oauth_state', None):
+        return redirect(url_for('login'))
+    resp = http_requests.post('https://discord.com/api/oauth2/token', data={
+        'client_id': DISCORD_CLIENT_ID,
+        'client_secret': DISCORD_CLIENT_SECRET,
+        'grant_type': 'authorization_code',
+        'code': code,
+        'redirect_uri': DISCORD_REDIRECT_URI,
+    })
+    token = resp.json().get('access_token')
+    if not token:
+        return render_template('login.html', error='Discord auth failed.')
+    user = http_requests.get('https://discord.com/api/users/@me',
+                             headers={'Authorization': f'Bearer {token}'}).json()
+    discord_id = user.get('id')
+    username = user.get('username', 'unknown')
+    email = user.get('email')
+    if not discord_id:
+        return render_template('login.html', error='Could not retrieve Discord profile.')
+    if DISCORD_GUILD_ID:
+        guilds = http_requests.get('https://discord.com/api/users/@me/guilds',
+                                   headers={'Authorization': f'Bearer {token}'}).json()
+        if not isinstance(guilds, list) or not any(g.get('id') == DISCORD_GUILD_ID for g in guilds):
+            return render_template('login.html', error='You must be a member of the Spare Time Gaming Discord server to access this.')
+    conn = sqlite3.connect('scenarios.db')
+    c = conn.cursor()
+    c.execute('INSERT OR IGNORE INTO oauth_users (provider, provider_user_id, username, email) VALUES (?,?,?,?)',
+              ('discord', discord_id, username, email))
+    conn.commit()
+    conn.close()
+    session['user_id'] = f'discord:{discord_id}'
+    session['username'] = username
+    session['oauth_provider'] = 'discord'
+    return redirect(url_for('dashboard'))
+
+@app.route('/login/google')
+def login_google():
+    state = secrets.token_urlsafe(16)
+    session['oauth_state'] = state
+    params = {
+        'client_id': GOOGLE_CLIENT_ID,
+        'redirect_uri': GOOGLE_REDIRECT_URI,
+        'response_type': 'code',
+        'scope': 'openid email profile',
+        'state': state,
+        'access_type': 'online',
+    }
+    return redirect('https://accounts.google.com/o/oauth2/auth?' + urllib.parse.urlencode(params))
+
+@app.route('/auth/google/callback')
+def auth_google_callback():
+    code = request.args.get('code')
+    state = request.args.get('state')
+    if not code or state != session.pop('oauth_state', None):
+        return redirect(url_for('login'))
+    resp = http_requests.post('https://oauth2.googleapis.com/token', data={
+        'client_id': GOOGLE_CLIENT_ID,
+        'client_secret': GOOGLE_CLIENT_SECRET,
+        'grant_type': 'authorization_code',
+        'code': code,
+        'redirect_uri': GOOGLE_REDIRECT_URI,
+    })
+    token = resp.json().get('access_token')
+    if not token:
+        return render_template('login.html', error='Google auth failed.')
+    user = http_requests.get('https://www.googleapis.com/oauth2/v2/userinfo',
+                             headers={'Authorization': f'Bearer {token}'}).json()
+    email = user.get('email')
+    google_id = user.get('id')
+    username = user.get('name') or email
+    if not email or not google_id:
+        return render_template('login.html', error='Could not retrieve Google profile.')
+    if ALLOWED_GOOGLE_EMAILS and email not in ALLOWED_GOOGLE_EMAILS:
+        return render_template('login.html', error='Your Google account is not authorized.')
+    conn = sqlite3.connect('scenarios.db')
+    c = conn.cursor()
+    c.execute('INSERT OR IGNORE INTO oauth_users (provider, provider_user_id, username, email) VALUES (?,?,?,?)',
+              ('google', google_id, username, email))
+    conn.commit()
+    conn.close()
+    session['user_id'] = f'google:{google_id}'
+    session['username'] = username
+    session['oauth_provider'] = 'google'
+    return redirect(url_for('dashboard'))
 
 @app.route('/logout')
 def logout():
@@ -452,6 +581,32 @@ def api_check_mods(filename):
 # Docker container management
 # ---------------------------------------------------------------------------
 
+_A2S_HOST = os.environ.get('A2S_HOST', 'host.docker.internal')
+_A2S_PORT = 17777
+
+def _a2s_ready(timeout=1.5):
+    """Return True if the DS server responds to an A2S_INFO query (fully up)."""
+    A2S_INFO = b'\xFF\xFF\xFF\xFFTSource Engine Query\x00'
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.settimeout(timeout)
+        sock.sendto(A2S_INFO, (_A2S_HOST, _A2S_PORT))
+        data, _ = sock.recvfrom(4096)
+        if data[:4] != b'\xFF\xFF\xFF\xFF':
+            return False
+        if data[4:5] == b'\x41':  # challenge response — send reply
+            sock.sendto(A2S_INFO + data[5:9], (_A2S_HOST, _A2S_PORT))
+            data, _ = sock.recvfrom(4096)
+        return data[4:5] == b'\x49'
+    except Exception:
+        return False
+    finally:
+        try:
+            sock.close()
+        except Exception:
+            pass
+
+
 def _scenario_to_container(scenario_name):
     """ipc_everon -> ds-ipc-everon"""
     return 'ds-' + scenario_name.replace('_', '-')
@@ -461,12 +616,35 @@ def _get_ds_containers():
         return []
     try:
         result = []
-        for c in _docker_client.containers.list(all=True):
+        any_running = False
+        containers = list(_docker_client.containers.list(all=True))
+        for c in containers:
+            if c.name.startswith('ds-') and c.status == 'running':
+                any_running = True
+                break
+        a2s_up = _a2s_ready() if any_running else False
+        for c in containers:
             if c.name.startswith('ds-'):
+                restart_count = c.attrs.get('RestartCount', 0)
+                state         = c.attrs.get('State', {})
+                exit_code     = state.get('ExitCode', 0)
+
+                if c.status == 'restarting':
+                    health = 'crash_loop'
+                elif c.status == 'running' and restart_count >= 3 and exit_code != 0:
+                    health = 'crash_loop'
+                elif c.status == 'running':
+                    health = 'green' if a2s_up else 'yellow'
+                else:
+                    health = 'red'
+
                 result.append({
                     'container_name': c.name,
                     'scenario': c.name[3:].replace('-', '_'),
                     'status': c.status,
+                    'health': health,
+                    'restart_count': restart_count,
+                    'exit_code': exit_code,
                 })
         return result
     except Exception as e:
@@ -510,6 +688,26 @@ def api_containers_activate():
         logger.error(f"Activate error: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/containers/reset/<scenario>', methods=['POST'])
+@login_required
+def api_containers_reset(scenario):
+    """Stop then start a container to clear its restart count."""
+    if not _docker_client:
+        return jsonify({'error': 'Docker socket unavailable'}), 503
+    container_name = _scenario_to_container(scenario)
+    try:
+        c = _docker_client.containers.get(container_name)
+        logger.info(f"User {session.get('username')} resetting crash-looping container {container_name}")
+        c.stop(timeout=15)
+        c.start()
+        return jsonify({'success': True, 'container': container_name})
+    except _docker_lib.errors.NotFound:
+        return jsonify({'error': f'Container {container_name} not found'}), 404
+    except Exception as e:
+        logger.error(f"Reset error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/containers/logs/<scenario>', methods=['GET'])
 @login_required
 def api_containers_logs(scenario):
@@ -530,6 +728,57 @@ def api_containers_logs(scenario):
 # ---------------------------------------------------------------------------
 # Scenario creator
 # ---------------------------------------------------------------------------
+
+def _fetch_mod_scenarios(mod_id):
+    """Fetch scenario paths from the workshop /scenarios page for a mod."""
+    url = f"{WORKSHOP_BASE_URL}/{mod_id}/scenarios"
+    try:
+        resp = http_requests.get(url, timeout=15, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        })
+        resp.raise_for_status()
+    except Exception as e:
+        logger.warning(f"Could not fetch scenarios page for mod {mod_id}: {e}")
+        return []
+
+    # Try __NEXT_DATA__ JSON first
+    match = re.search(r'<script[^>]+id="__NEXT_DATA__"[^>]*>(.*?)</script>', resp.text, re.DOTALL)
+    if match:
+        try:
+            data = json.loads(match.group(1))
+            page_props = data['props']['pageProps']
+            raw = page_props.get('scenarios') or page_props.get('asset', {}).get('scenarios', [])
+            ids = [s.get('scenarioId') or s.get('id', '') for s in raw if isinstance(s, dict)]
+            ids = [i for i in ids if i]
+            if ids:
+                return ids
+        except Exception:
+            pass
+
+    # Fall back: scrape scenario ID pattern directly from HTML
+    return list(dict.fromkeys(
+        re.findall(r'\{[0-9A-Fa-f]+\}[^\s<"\']+\.conf', resp.text)
+    ))
+
+
+@app.route('/api/mods/scenarios', methods=['POST'])
+@login_required
+def api_mods_scenarios():
+    """Return scenario IDs provided by a list of mod IDs."""
+    data = request.get_json()
+    mod_ids = data.get('ids', [])
+    results = []
+    seen = set()
+    for mod_id in mod_ids:
+        mod_id = mod_id.strip().upper()
+        if not mod_id:
+            continue
+        for scen_id in _fetch_mod_scenarios(mod_id):
+            if scen_id not in seen:
+                seen.add(scen_id)
+                results.append({'modId': mod_id, 'scenarioId': scen_id})
+    return jsonify(results)
+
 
 @app.route('/api/mods/lookup', methods=['POST'])
 @login_required
@@ -643,6 +892,96 @@ def api_scenarios_create():
     except Exception as e:
         logger.error(f"Create scenario error: {e}")
         return jsonify({'error': str(e)}), 500
+
+# ---------------------------------------------------------------------------
+# Base mods management
+# ---------------------------------------------------------------------------
+
+@app.route('/api/base-mods', methods=['GET'])
+@login_required
+def api_base_mods_list():
+    conn = sqlite3.connect('scenarios.db')
+    c = conn.cursor()
+    c.execute('SELECT mod_id, name, added_at FROM base_mods ORDER BY id')
+    rows = [{'modId': r[0], 'name': r[1], 'addedAt': r[2]} for r in c.fetchall()]
+    conn.close()
+    return jsonify(rows)
+
+@app.route('/api/base-mods', methods=['POST'])
+@login_required
+def api_base_mods_add():
+    data = request.get_json()
+    mod_id = (data.get('modId') or '').strip().upper()
+    name = (data.get('name') or '').strip()
+    if not mod_id or not name:
+        return jsonify({'error': 'modId and name required'}), 400
+    try:
+        conn = sqlite3.connect('scenarios.db')
+        c = conn.cursor()
+        c.execute('INSERT INTO base_mods (mod_id, name, added_at) VALUES (?, ?, ?)',
+                  (mod_id, name, datetime.now().isoformat()))
+        conn.commit()
+        conn.close()
+        logger.info(f"User {session.get('username')} added base mod {name} ({mod_id})")
+        return jsonify({'success': True})
+    except sqlite3.IntegrityError:
+        return jsonify({'error': 'Mod already in base list'}), 409
+
+@app.route('/api/base-mods/<mod_id>', methods=['DELETE'])
+@login_required
+def api_base_mods_remove(mod_id):
+    mod_id = mod_id.upper()
+    conn = sqlite3.connect('scenarios.db')
+    c = conn.cursor()
+    c.execute('DELETE FROM base_mods WHERE mod_id = ?', (mod_id,))
+    deleted = c.rowcount
+    conn.commit()
+    conn.close()
+    if not deleted:
+        return jsonify({'error': 'Mod not found'}), 404
+    logger.info(f"User {session.get('username')} removed base mod {mod_id}")
+    return jsonify({'success': True})
+
+@app.route('/api/scenarios/sync-base-mods', methods=['POST'])
+@login_required
+def api_sync_base_mods():
+    conn = sqlite3.connect('scenarios.db')
+    c = conn.cursor()
+    c.execute('SELECT mod_id, name FROM base_mods')
+    base_mods = [{'modId': r[0], 'name': r[1], 'version': '', 'required': False}
+                 for r in c.fetchall()]
+    conn.close()
+
+    if not base_mods:
+        return jsonify({'success': True, 'updated': 0, 'message': 'No base mods configured'})
+
+    base_mod_ids = {m['modId'].upper() for m in base_mods}
+    updated = []
+    errors = []
+
+    for filename in os.listdir(app.config['UPLOAD_FOLDER']):
+        if not filename.endswith('.json'):
+            continue
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        try:
+            with open(filepath, 'r') as f:
+                data = json.load(f)
+            if 'game' not in data or 'mods' not in data['game']:
+                continue
+            existing_ids = {m.get('modId', '').upper() for m in data['game']['mods']}
+            to_add = [m for m in base_mods if m['modId'].upper() not in existing_ids]
+            if to_add:
+                data['game']['mods'] = to_add + data['game']['mods']
+                with open(filepath, 'w') as f:
+                    json.dump(data, f, indent=2)
+                updated.append(filename)
+        except Exception as e:
+            errors.append(f"{filename}: {str(e)}")
+
+    logger.info(f"User {session.get('username')} synced base mods to {len(updated)} scenario(s)")
+    return jsonify({'success': True, 'updated': len(updated),
+                    'updatedFiles': updated, 'errors': errors})
+
 
 # Health check
 @app.route('/health', methods=['GET'])
